@@ -76,6 +76,8 @@ button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
 .badge{display:inline-block; font-size:12px; font-weight:700; border-radius:99px; padding:3px 10px; margin:0 6px 8px 0}
 .badge.up{background:var(--good-bg); color:var(--good)}
 .badge.tgt{background:var(--chip); color:var(--muted)}
+.badge.pr{background:var(--good); color:#fff}
+.badge.dl{background:var(--bad-bg); color:var(--bad)}
 .wrow{display:flex; align-items:center; gap:10px; margin-bottom:10px}
 .wrow .lbl{font-size:13px; color:var(--muted); width:58px}
 .stp{
@@ -247,6 +249,28 @@ function lastEntry(dayId,exId){
   }
   return null;
 }
+function lastEntries(dayId,exId,n){
+  const out=[];
+  for(let i=S.log.length-1;i>=0 && out.length<n;i--){
+    if(S.log[i].dayId!==dayId) continue;
+    const e=S.log[i].entries.find(x=>x.exId===exId);
+    if(e) out.push(e);
+  }
+  return out; // nieuwste eerst
+}
+function histMax(name,bw){ // hoogste ooit over de hele log (zelfde naam-matching als de grafiek)
+  let m=null;
+  S.log.forEach(s=>s.entries.forEach(e=>{
+    if(!chartMatch(e.name,name)) return;
+    const v=bw? Math.max(...e.reps) : (e.w>0? e.w : null);
+    if(v!=null && (m==null||v>m)) m=v;
+  }));
+  return m;
+}
+function draftPRs(d){
+  return d.entries.filter(e=>draftEntryDone(e) && e.prMax!=null &&
+    (e.bw? e.sets.some(s=>s.done && s.reps>e.prMax) : e.w>e.prMax)).length;
+}
 function hitTarget(e){ return !!e.target && e.reps.length>0 && Math.min(...e.reps)>=e.target; }
 const WARMUP={
   upper:['Arm Circles – 10 voor/achter','Scapula Push-ups – 10','Cat-Cow – 10','Thread the Needle – 10 per kant','Push-up to Downward Dog – 10'],
@@ -258,8 +282,9 @@ const RULES=['Mind-muscle connection','Focus bottom half','Laatste set tot falen
 function startDraft(dayId){
   const day=S.days.find(d=>d.id===dayId);
   const entries=day.ex.map(x=>{
-    const last=lastEntry(dayId,x.id);
-    let w=x.w, up=false, prefill=[];
+    const hist=lastEntries(dayId,x.id,2);
+    const last=hist[0]||null;
+    let w=x.w, up=false, deload=false, prefill=[];
     if(last){
       w=last.w;
       if(!x.bw && hitTarget(last)){ w=last.w+x.step; up=true; }
@@ -268,12 +293,16 @@ function startDraft(dayId){
     }else{
       for(let i=0;i<x.sets;i++) prefill.push(x.target);
     }
+    if(!x.bw && !up && hist.length===2 && hist[0].fail && hist[1].fail){
+      w=Math.round(last.w*0.9*2)/2; deload=true; // 2x f op rij -> stel -10% voor
+    }
     let prev='';
     if(last){
       const allEq=last.reps.every(r=>r===last.reps[0]);
       prev=(last.bw?'':fmtW(last.w)+' kg · ')+(allEq? last.reps.length+'×'+last.reps[0] : last.reps.join('/'))+(last.fail?' · f':'');
     }
-    return {exId:x.id, name:x.name, w, bw:x.bw, target:x.target, step:x.step, up, prev,
+    return {exId:x.id, name:x.name, w, bw:x.bw, target:x.target, step:x.step, up, deload,
+            prMax:histMax(x.name,x.bw), prev,
             sets:prefill.map(r=>({reps:r,done:false})), fail:false};
   });
   S.draft={dayId, date:todayISO(), entries, open:0};
@@ -288,12 +317,35 @@ function finishDraft(){
     reps:e.sets.filter(s=>s.done).map(s=>s.reps), fail:e.fail,
   }));
   if(!entries.length){ toast('Nog geen sets afgevinkt'); return; }
+  const prs=draftPRs(d);
   S.log.push({id:d.date+'-'+d.dayId+'-'+S.log.length, date:d.date, dayId:d.dayId, entries});
   // schema bijwerken naar laatst gebruikte gewicht
   const day=S.days.find(x=>x.id===d.dayId);
   entries.forEach(e=>{ const x=day.ex.find(x=>x.id===e.exId); if(x&&!x.bw) x.w=e.w; });
   S.draft=null; persist(); render();
-  toast('Training opgeslagen 💪');
+  toast(prs? 'Opgeslagen · '+prs+'× nieuw PR! 🎉' : 'Training opgeslagen 💪');
+  syncPush(false);
+}
+
+/* ---------- sync naar gist (voor weekrapport op laptop) ---------- */
+const SYNC_KEY='gymlogger-sync';
+const GIST_ID='74e2a5188f0b8f57d3b8cc0c4ece8845';
+function syncCfg(){ try{ return JSON.parse(localStorage.getItem(SYNC_KEY))||{} }catch(e){ return {} } }
+async function syncPush(manual){
+  const cfg=syncCfg();
+  if(!cfg.token){ if(manual) toast('Stel eerst een token in'); return; }
+  try{
+    const content=JSON.stringify({updated:new Date().toISOString(), days:S.days, log:S.log});
+    const r=await fetch('https://api.github.com/gists/'+GIST_ID,{
+      method:'PATCH',
+      headers:{'Authorization':'Bearer '+cfg.token,'Accept':'application/vnd.github+json'},
+      body:JSON.stringify({files:{'gym-logger-data.json':{content}}})
+    });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    cfg.lastSync=new Date().toISOString();
+    localStorage.setItem(SYNC_KEY,JSON.stringify(cfg));
+    if(manual){ toast('Gesynct ✓'); render(); }
+  }catch(e){ if(manual) toast('Sync mislukt ('+e.message+')'); }
 }
 
 /* ---------- export ---------- */
@@ -448,6 +500,9 @@ function vTraining(){
     h+='<button class="ex-head" data-a="exopen" data-i="'+i+'"><span class="ex-done-dot'+(draftEntryDone(e)?' on':'')+'"></span><span class="name">'+esc(e.name)+'</span><span class="sum num">'+(e.bw?'':fmtW(e.w)+' kg · ')+e.sets.length+' sets</span></button>';
     h+='<div class="ex-body">';
     if(e.up) h+='<span class="badge up">Nieuw gewicht ↑</span>';
+    if(e.deload) h+='<span class="badge dl">Deload −10% (2× f)</span>';
+    const isPR = e.prMax!=null && (e.bw? e.sets.some(s=>s.done&&s.reps>e.prMax) : (e.w>e.prMax && e.sets.some(s=>s.done)));
+    if(isPR) h+='<span class="badge pr">🎉 Nieuw PR</span>';
     h+='<span class="badge tgt num">doel →'+e.target+' reps</span>';
     if(e.prev) h+='<div class="hint num" style="margin-bottom:8px">Vorige keer: '+esc(e.prev)+'</div>';
     if(!e.bw){
@@ -511,6 +566,12 @@ function vSchema(){
     h+='<button class="addbtn" data-a="add-ex" data-day="'+day.id+'">+ Oefening toevoegen</button>';
     h+='</div>';
   });
+  const cfg=syncCfg();
+  h+='<div class="card card-pad"><div style="font-weight:700;margin-bottom:6px">Sync naar laptop</div>';
+  h+='<p class="hint" style="margin:0 0 10px">Na elke opgeslagen training stuurt de app je log automatisch naar je eigen GitHub, zodat het maandag-weekrapport op je laptop erbij kan. Plak hier eenmalig een GitHub-token met alleen “gist”-recht.</p>';
+  h+='<input type="password" class="numin" id="s-token" placeholder="'+(cfg.token?'••• token ingesteld — plak om te vervangen':'ghp_…')+'">';
+  h+='<div style="display:flex;gap:8px;margin-top:10px"><button class="fbtn" data-a="save-token">Token opslaan</button><button class="fbtn" data-a="syncnow">Sync nu</button></div>';
+  h+='<p class="hint" style="margin:10px 0 0">'+(cfg.lastSync? 'Laatste sync: '+dstr(cfg.lastSync.slice(0,10))+' '+cfg.lastSync.slice(11,16) : 'Nog niet gesynct.')+'</p></div>';
   h+='<p class="hint" style="margin:4px 2px 20px">Gewichten hier zijn het startpunt; na elke training wordt het laatst gebruikte gewicht automatisch onthouden. Data staat in deze browser op dit toestel — maak af en toe een backup via Historie.</p>';
   return h;
 }
@@ -688,7 +749,7 @@ document.getElementById('app').addEventListener('click',ev=>{
       e.sets.pop(); persist(); render(); return;
     }
     if(a==='exopen'){ const i=+b.dataset.i; d.open = d.open===i? -1 : i; persist(); render(); return; }
-    if(a==='w'){ const e=d.entries[+b.dataset.i]; e.w=Math.max(0,Math.round((e.w + (+b.dataset.d)*e.step)*100)/100); e.up=false; persist(); render(); return; }
+    if(a==='w'){ const e=d.entries[+b.dataset.i]; e.w=Math.max(0,Math.round((e.w + (+b.dataset.d)*e.step)*100)/100); e.up=false; e.deload=false; persist(); render(); return; }
     if(a==='r'){ const e=d.entries[+b.dataset.i], s=e.sets[+b.dataset.j]; s.reps=Math.max(0,s.reps+(+b.dataset.d)); s.done=true; persist(); render(); return; }
     if(a==='done'){
       const i=+b.dataset.i, e=d.entries[i], s=e.sets[+b.dataset.j];
@@ -712,6 +773,14 @@ document.getElementById('app').addEventListener('click',ev=>{
   if(a==='copyall'){ copyText(allText()); return; }
   if(a==='morehist'){ histShown+=100; render(); return; }
   if(a==='psel'){ progSel=b.dataset.k; render(); return; }
+  if(a==='save-token'){
+    const v=$('#s-token').value.trim();
+    const cfg=syncCfg();
+    if(v){ cfg.token=v; localStorage.setItem(SYNC_KEY,JSON.stringify(cfg)); render(); toast('Token opgeslagen'); }
+    else toast('Plak eerst een token');
+    return;
+  }
+  if(a==='syncnow'){ syncPush(true); return; }
   if(a==='import'){ importNotes(); return; }
   if(a==='backup'){ backup(); return; }
   if(a==='restore'){ restore(); return; }
