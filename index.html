@@ -50,8 +50,9 @@ button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
 .bigbtn .eyebrow{font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; opacity:.75}
 .bigbtn .t{font-size:24px; font-weight:800; letter-spacing:-.3px}
 .daygrid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px}
-.daybtn{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px; text-align:left}
-.daybtn .t{font-weight:700}
+.daybtn{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 12px; text-align:left}
+.daybtn .t{font-weight:800; font-size:17px}
+.daybtn .fx{color:var(--accent); font-weight:700; font-size:14px; margin:3px 0 2px}
 .daybtn .s{font-size:12px; color:var(--muted)}
 
 /* collapsible */
@@ -254,13 +255,6 @@ function lastEntry(dayId,exId){
   return null;
 }
 function hitTarget(e){ return e.reps.length>0 && Math.min(...e.reps)>=e.target; }
-function nextDay(){
-  if(!S.log.length) return S.days[0];
-  const last=S.log[S.log.length-1];
-  const i=S.days.findIndex(d=>d.id===last.dayId);
-  return S.days[(i+1)%S.days.length] || S.days[0];
-}
-
 const WARMUP={
   upper:['Arm Circles – 10 voor/achter','Scapula Push-ups – 10','Cat-Cow – 10','Thread the Needle – 10 per kant','Push-up to Downward Dog – 10'],
   lower:['Cat-Cow – 10','World’s Greatest Stretch – 5 per kant','Bodyweight Squats – 10 (diep, langzaam)','Glute Bridges – 15','Bird Dog – 10 per kant'],
@@ -424,19 +418,16 @@ function render(){
 }
 
 function vHome(){
-  const nx=nextDay();
-  let h='<h1><small>Gym Logger</small>Volgende training</h1>';
+  let h='<h1><small>Gym Logger</small>Kies je training</h1>';
   if(S.draft){
     const day=S.days.find(d=>d.id===S.draft.dayId);
     const n=S.draft.entries.filter(draftEntryDone).length;
     h+='<button class="bigbtn" data-a="resume"><span class="eyebrow">Training bezig</span><div class="t">Ga verder: '+esc(day.name)+'</div><div class="eyebrow num" style="margin-top:4px">'+n+'/'+S.draft.entries.length+' oefeningen gedaan</div></button>';
-  }else{
-    h+='<button class="bigbtn" data-a="start" data-day="'+nx.id+'"><span class="eyebrow">Aanbevolen</span><div class="t">'+esc(nx.name)+'</div></button>';
   }
   h+='<div class="daygrid">';
-  S.days.filter(d=>!(S.draft? d.id===S.draft.dayId : d.id===nx.id)).forEach(d=>{
+  S.days.forEach(d=>{
     const lastD=[...S.log].reverse().find(l=>l.dayId===d.id);
-    h+='<button class="daybtn" data-a="start" data-day="'+d.id+'"><div class="t">'+esc(d.name)+'</div><div class="s">'+(lastD?'laatst '+dstr(lastD.date):'nog niet gedaan')+'</div></button>';
+    h+='<button class="daybtn" data-a="start" data-day="'+d.id+'"><div class="t">'+esc(d.name)+'</div><div class="fx">'+esc(d.ex[0]? d.ex[0].name : '')+'</div><div class="s">'+(lastD?'laatst '+dstr(lastD.date):'nog niet gedaan')+'</div></button>';
   });
   h+='</div>';
   h+='<div class="card fold" id="fold-rules"><button class="fold-head" data-a="fold" data-f="fold-rules">Regels &amp; technieken <span class="arr">›</span></button><div class="fold-body"><ul>'+RULES.map(r=>'<li>'+esc(r)+'</li>').join('')+'</ul></div></div>';
