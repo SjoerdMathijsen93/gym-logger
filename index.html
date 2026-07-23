@@ -1,0 +1,625 @@
+<title>Gym Logger</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<style>
+:root{
+  --bg:#f5f4f1; --surface:#ffffff; --surface2:#eceae5; --ink:#1c1e22; --muted:#6b7078;
+  --line:#dcdad4; --accent:#3f6fc4; --accent-ink:#ffffff; --good:#2f8a58; --good-bg:#e2f2e8;
+  --bad:#c14f4f; --bad-bg:#f7e4e4; --chip:#e7e5e0;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#101318; --surface:#1a1f26; --surface2:#232933; --ink:#edeae3; --muted:#8b929c;
+    --line:#2b323c; --accent:#6fa1f2; --accent-ink:#0d1117; --good:#4cc07d; --good-bg:#1d3328;
+    --bad:#e07070; --bad-bg:#3a2222; --chip:#2a3038;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#101318; --surface:#1a1f26; --surface2:#232933; --ink:#edeae3; --muted:#8b929c;
+  --line:#2b323c; --accent:#6fa1f2; --accent-ink:#0d1117; --good:#4cc07d; --good-bg:#1d3328;
+  --bad:#e07070; --bad-bg:#3a2222; --chip:#2a3038;
+}
+:root[data-theme="light"]{
+  --bg:#f5f4f1; --surface:#ffffff; --surface2:#eceae5; --ink:#1c1e22; --muted:#6b7078;
+  --line:#dcdad4; --accent:#3f6fc4; --accent-ink:#ffffff; --good:#2f8a58; --good-bg:#e2f2e8;
+  --bad:#c14f4f; --bad-bg:#f7e4e4; --chip:#e7e5e0;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html,body{margin:0; padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:16px; line-height:1.4;
+  padding-bottom:calc(76px + env(safe-area-inset-bottom));
+}
+#app{max-width:480px; margin:0 auto; padding:14px 14px 0}
+h1{font-size:22px; font-weight:800; letter-spacing:-.3px; margin:6px 2px 14px}
+.back{display:inline-flex; align-items:center; gap:4px; color:var(--accent); font-weight:700; font-size:15px; padding:8px 4px 2px; margin-left:-4px}
+.numin{width:100%; border:1px solid var(--line); border-radius:8px; background:var(--surface2); color:var(--ink); padding:9px; font:inherit}
+h1 small{display:block; font-size:12px; font-weight:600; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; margin-bottom:2px}
+.num{font-variant-numeric:tabular-nums}
+.card{background:var(--surface); border:1px solid var(--line); border-radius:14px; margin-bottom:12px; overflow:hidden}
+.card-pad{padding:14px}
+button{font:inherit; color:inherit; border:none; background:none; cursor:pointer; touch-action:manipulation}
+button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+/* home */
+.bigbtn{
+  display:block; width:100%; text-align:left; background:var(--accent); color:var(--accent-ink);
+  border-radius:14px; padding:18px 16px; margin-bottom:12px;
+}
+.bigbtn .eyebrow{font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; opacity:.75}
+.bigbtn .t{font-size:24px; font-weight:800; letter-spacing:-.3px}
+.daygrid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px}
+.daybtn{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px; text-align:left}
+.daybtn .t{font-weight:700}
+.daybtn .s{font-size:12px; color:var(--muted)}
+
+/* collapsible */
+.fold-head{display:flex; width:100%; align-items:center; justify-content:space-between; padding:13px 14px; font-weight:700; text-align:left}
+.fold-head .arr{color:var(--muted); transition:transform .15s}
+.fold.open .fold-head .arr{transform:rotate(90deg)}
+.fold-body{display:none; padding:0 14px 14px; color:var(--muted); font-size:14px}
+.fold.open .fold-body{display:block}
+.fold-body ul{margin:6px 0; padding-left:18px}
+.fold-body li{margin:3px 0}
+@media (prefers-reduced-motion: reduce){ .fold-head .arr{transition:none} }
+
+/* exercise cards */
+.ex-head{display:flex; width:100%; align-items:center; gap:10px; padding:13px 14px; text-align:left}
+.ex-head .name{font-weight:700; flex:1; min-width:0}
+.ex-head .sum{font-size:13px; color:var(--muted); white-space:nowrap}
+.ex-done-dot{width:10px; height:10px; border-radius:50%; background:var(--line); flex:none}
+.ex-done-dot.on{background:var(--good)}
+.ex-body{display:none; border-top:1px solid var(--line); padding:12px 14px 14px}
+.ex.open .ex-body{display:block}
+.badge{display:inline-block; font-size:12px; font-weight:700; border-radius:99px; padding:3px 10px; margin:0 6px 8px 0}
+.badge.up{background:var(--good-bg); color:var(--good)}
+.badge.tgt{background:var(--chip); color:var(--muted)}
+.wrow{display:flex; align-items:center; gap:10px; margin-bottom:10px}
+.wrow .lbl{font-size:13px; color:var(--muted); width:58px}
+.stp{
+  width:52px; height:44px; border-radius:10px; background:var(--surface2); border:1px solid var(--line);
+  font-size:22px; font-weight:700; flex:none; display:flex; align-items:center; justify-content:center;
+}
+.stp:active{background:var(--chip)}
+.wval{font-size:20px; font-weight:800; min-width:84px; text-align:center}
+.setrow{display:flex; align-items:center; gap:10px; padding:5px 0}
+.setrow .lbl{font-size:13px; color:var(--muted); width:58px}
+.setrow .reps{font-size:20px; font-weight:800; min-width:44px; text-align:center; color:var(--muted)}
+.setrow.done .reps{color:var(--ink)}
+.chk{
+  width:52px; height:44px; border-radius:10px; border:1px solid var(--line); background:var(--surface2);
+  font-size:20px; color:var(--muted); flex:none; margin-left:auto;
+  display:flex; align-items:center; justify-content:center;
+}
+.setrow.done .chk{background:var(--good); border-color:var(--good); color:#fff}
+.exfoot{display:flex; align-items:center; gap:10px; margin-top:10px}
+.fbtn{
+  border:1px solid var(--line); background:var(--surface2); border-radius:10px;
+  padding:10px 16px; font-weight:800; font-size:15px;
+}
+.fbtn.on{background:var(--bad); border-color:var(--bad); color:#fff}
+.hint{font-size:12px; color:var(--muted)}
+
+.primary{
+  display:block; width:100%; background:var(--accent); color:var(--accent-ink);
+  border-radius:14px; padding:16px; font-size:17px; font-weight:800; text-align:center; margin:16px 0 8px;
+}
+.ghost{
+  display:block; width:100%; border:1px solid var(--line); background:var(--surface);
+  border-radius:12px; padding:13px; font-weight:600; text-align:center; margin-bottom:10px; color:var(--muted);
+}
+.danger{color:var(--bad)}
+
+/* history */
+.sess{padding:13px 14px}
+.sess + .sess{border-top:1px solid var(--line)}
+.sess-head{display:flex; align-items:center; gap:8px; margin-bottom:6px}
+.sess-head .d{font-weight:800}
+.sess-head .del{margin-left:auto; color:var(--muted); font-size:14px; padding:4px 8px}
+.sess ul{margin:0; padding-left:16px; font-size:14px}
+.sess li{margin:2px 0}
+.flag-f{color:var(--bad); font-weight:800}
+.flag-p{color:var(--good); font-weight:800}
+textarea{
+  width:100%; min-height:90px; border:1px solid var(--line); background:var(--surface2); color:var(--ink);
+  border-radius:10px; padding:10px; font:inherit; font-size:13px;
+}
+
+/* schema editor */
+.schx{display:flex; width:100%; align-items:center; gap:10px; padding:11px 14px; text-align:left}
+.schx + .schx, .schx + .edit, .edit + .schx{border-top:1px solid var(--line)}
+.schx .name{font-weight:600; flex:1}
+.schx .sum{font-size:12px; color:var(--muted); white-space:nowrap}
+.edit{border-top:1px solid var(--line); padding:12px 14px; background:var(--surface2)}
+.edit label{display:block; font-size:12px; color:var(--muted); margin:8px 0 3px}
+.edit input[type=text],.edit input[type=number]{
+  width:100%; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--ink);
+  padding:9px; font:inherit;
+}
+.edit .row2{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px}
+.edit .btns{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap}
+.edit .btns .fbtn{padding:9px 13px; font-size:14px; font-weight:600}
+.cbrow{display:flex; align-items:center; gap:8px; margin-top:10px; font-size:14px}
+.cbrow input{width:20px; height:20px}
+.dayhead{padding:12px 14px 4px; font-size:12px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--muted)}
+.addbtn{display:block; width:100%; text-align:center; padding:11px; color:var(--accent); font-weight:700; border-top:1px solid var(--line)}
+
+/* tab bar */
+#tabs{
+  position:fixed; bottom:0; left:0; right:0; background:var(--surface); border-top:1px solid var(--line);
+  display:flex; justify-content:space-around; padding:6px 0 calc(6px + env(safe-area-inset-bottom));
+}
+#tabs button{flex:1; padding:8px 0 6px; color:var(--muted); font-size:11px; font-weight:600}
+#tabs button.on{color:var(--accent)}
+#tabs .ico{display:block; font-size:20px; margin-bottom:1px}
+.toast{
+  position:fixed; bottom:calc(84px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%);
+  background:var(--ink); color:var(--bg); padding:10px 18px; border-radius:99px; font-size:14px; font-weight:600;
+  opacity:0; pointer-events:none; transition:opacity .2s; white-space:nowrap; z-index:9;
+}
+.toast.show{opacity:1}
+.empty{color:var(--muted); text-align:center; padding:26px 14px; font-size:14px}
+</style>
+
+<div id="app"></div>
+<nav id="tabs">
+  <button data-tab="train"><span class="ico">🏋️</span>Training</button>
+  <button data-tab="hist"><span class="ico">📓</span>Historie</button>
+  <button data-tab="schema"><span class="ico">🛠️</span>Schema</button>
+</nav>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+const LS_KEY='gymlogger-v1';
+
+/* ---------- seed: schema + laatste trainingen (uit Notes, jul 2026) ---------- */
+function seed(){
+  const D=(id,name,warm,ex)=>({id,name,warm,ex});
+  const E=(id,name,w,sets,target,step,bw)=>({id,name,w,sets,target,step,bw:!!bw});
+  const days=[
+    D('ua','Upper A','upper',[
+      E('bench','Bench',50,4,10,2.5), E('rowA','Row machine',60,3,10,5),
+      E('latr','Lat raise',20,4,20,2), E('pull','Neutral grip pull-ups',0,4,12,0,true),
+      E('dips','Dips',0,3,12,0,true), E('curl','Seated db bicep curl',24,3,12,2),
+    ]),
+    D('la','Lower A','lower',[
+      E('rdl','RDL',92,4,12,2.5), E('hackA','Hack squat machine',50,4,12,5),
+      E('legxA','Leg ext',55,3,12,5), E('calfA','Calf press 1L',70,3,25,5),
+      E('rotA','Rotary torso machine',30,3,20,5), E('crunch','Mach crunch',30,3,20,5),
+    ]),
+    D('ub','Upper B','upper',[
+      E('incdb','Incl db press',52,4,10,2), E('rowB','Row machine',65,4,10,5),
+      E('ohp','OH press',36,3,10,2.5), E('fly','Pec fly',30,3,12,5),
+      E('rpd','Rev pec deck',20,3,12,5), E('preach','Incl preach curl',14,3,12,2),
+    ]),
+    D('lb','Lower B','lower',[
+      E('hex','Hexbar deadlift',70,4,10,2.5), E('hackB','Hack squat machine',50,4,12,5),
+      E('legxB','Leg ext',55,3,12,5), E('rotB','Rot torso machine',25,3,20,5),
+      E('calfB','Calf press 1L',70,3,25,5), E('hlr','Hanging leg raises',0,3,20,0,true),
+    ]),
+  ];
+  const L=(date,dayId,entries)=>({id:date+'-'+dayId,date,dayId,entries});
+  const N=(exId,name,w,reps,fail,bw,target)=>({exId,name,w,reps,fail:!!fail,bw:!!bw,target});
+  const log=[
+    L('2026-07-19','ua',[
+      N('bench','Bench',50,[7,7,7,7],1,0,10), N('rowA','Row machine',60,[10,10,10],0,0,10),
+      N('latr','Lat raise',20,[12,12,12,12],0,0,20), N('pull','Neutral grip pull-ups',0,[9,9,9,9],1,1,12),
+      N('dips','Dips',0,[11,11,11],1,1,12), N('curl','Seated db bicep curl',24,[10,10,10],0,0,12),
+    ]),
+    L('2026-07-20','la',[
+      N('rdl','RDL',92,[6,6,6,6],0,0,12), N('hackA','Hack squat machine',50,[11,11,11,11],0,0,12),
+      N('legxA','Leg ext',55,[9,9,9],1,0,12), N('calfA','Calf press 1L',70,[17,17,17],1,0,25),
+      N('rotA','Rotary torso machine',30,[8,8,8],0,0,20), N('crunch','Mach crunch',30,[15,15,15],1,0,20),
+    ]),
+    L('2026-07-22','ub',[
+      N('incdb','Incl db press',52,[7,7,7,7],0,0,10), N('rowB','Row machine',65,[5,5,5,5],1,0,10),
+      N('ohp','OH press',36,[10,10,10],0,0,10), N('fly','Pec fly',30,[11,11,11],1,0,12),
+      N('rpd','Rev pec deck',20,[10,10,10],0,0,12), N('preach','Incl preach curl',14,[12,12,12],1,0,12),
+    ]),
+    L('2026-07-23','lb',[
+      N('hex','Hexbar deadlift',70,[9,9,9,9],0,0,10), N('hackB','Hack squat machine',50,[12,12,12,12],0,0,12),
+      N('legxB','Leg ext',55,[9,9,9],0,0,12), N('rotB','Rot torso machine',25,[17,17,17],0,0,20),
+      N('calfB','Calf press 1L',70,[17,17,17],0,0,25), N('hlr','Hanging leg raises',0,[17,17,17],0,1,20),
+    ]),
+  ];
+  return {v:1, days, log, draft:null};
+}
+
+/* ---------- state ---------- */
+let S;
+try{ S=JSON.parse(localStorage.getItem(LS_KEY)) }catch(e){ S=null }
+if(!S || !S.days){ S=seed(); persist(); }
+function persist(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(S)) }catch(e){} }
+
+let tab='train';
+let openEdit=null;   // 'dayId/exId' in schema-editor
+let homeOverride=false; // true = toon overzicht ondanks actieve training
+
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtW=w=>(Math.round(w*100)/100).toString().replace('.',',');
+const WD=['Zo','Ma','Di','Wo','Do','Vr','Za'], MON=['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
+function dstr(iso){ const d=new Date(iso+'T12:00:00'); return WD[d.getDay()]+' '+d.getDate()+' '+MON[d.getMonth()]; }
+function todayISO(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1800); }
+function lastEntry(dayId,exId){
+  for(let i=S.log.length-1;i>=0;i--){
+    if(S.log[i].dayId!==dayId) continue;
+    const e=S.log[i].entries.find(x=>x.exId===exId);
+    if(e) return e;
+  }
+  return null;
+}
+function hitTarget(e){ return e.reps.length>0 && Math.min(...e.reps)>=e.target; }
+function nextDay(){
+  if(!S.log.length) return S.days[0];
+  const last=S.log[S.log.length-1];
+  const i=S.days.findIndex(d=>d.id===last.dayId);
+  return S.days[(i+1)%S.days.length] || S.days[0];
+}
+
+const WARMUP={
+  upper:['Arm Circles – 10 voor/achter','Scapula Push-ups – 10','Cat-Cow – 10','Thread the Needle – 10 per kant','Push-up to Downward Dog – 10'],
+  lower:['Cat-Cow – 10','World’s Greatest Stretch – 5 per kant','Bodyweight Squats – 10 (diep, langzaam)','Glute Bridges – 15','Bird Dog – 10 per kant'],
+};
+const RULES=['Mind-muscle connection','Focus bottom half','Laatste set tot falen','Compounds 6–10 reps','Isolatie 10–15 reps','Drop set: laatste set −30% gewicht, door tot falen','Rest-pause: 5 sec stop bij falen, dan nog 2–3 reps','Eccentrisch: 3 sec laten zakken'];
+
+/* ---------- draft (actieve training) ---------- */
+function startDraft(dayId){
+  const day=S.days.find(d=>d.id===dayId);
+  const entries=day.ex.map(x=>{
+    const last=lastEntry(dayId,x.id);
+    let w=x.w, up=false, prefill=[];
+    if(last){
+      w=last.w;
+      if(!x.bw && hitTarget(last)){ w=last.w+x.step; up=true; }
+      for(let i=0;i<x.sets;i++) prefill.push(last.reps[Math.min(i,last.reps.length-1)] ?? x.target);
+      if(x.bw && hitTarget(last)) up=true;
+    }else{
+      for(let i=0;i<x.sets;i++) prefill.push(x.target);
+    }
+    let prev='';
+    if(last){
+      const allEq=last.reps.every(r=>r===last.reps[0]);
+      prev=(last.bw?'':fmtW(last.w)+' kg · ')+(allEq? last.reps.length+'×'+last.reps[0] : last.reps.join('/'))+(last.fail?' · f':'');
+    }
+    return {exId:x.id, name:x.name, w, bw:x.bw, target:x.target, step:x.step, up, prev,
+            sets:prefill.map(r=>({reps:r,done:false})), fail:false};
+  });
+  S.draft={dayId, date:todayISO(), entries, open:0};
+  homeOverride=false;
+  persist(); render();
+}
+function draftEntryDone(e){ return e.sets.some(s=>s.done); }
+function finishDraft(){
+  const d=S.draft;
+  const entries=d.entries.filter(draftEntryDone).map(e=>({
+    exId:e.exId, name:e.name, w:e.w, bw:e.bw, target:e.target,
+    reps:e.sets.filter(s=>s.done).map(s=>s.reps), fail:e.fail,
+  }));
+  if(!entries.length){ toast('Nog geen sets afgevinkt'); return; }
+  S.log.push({id:d.date+'-'+d.dayId+'-'+S.log.length, date:d.date, dayId:d.dayId, entries});
+  // schema bijwerken naar laatst gebruikte gewicht
+  const day=S.days.find(x=>x.id===d.dayId);
+  entries.forEach(e=>{ const x=day.ex.find(x=>x.id===e.exId); if(x&&!x.bw) x.w=e.w; });
+  S.draft=null; persist(); render();
+  toast('Training opgeslagen 💪');
+}
+
+/* ---------- export ---------- */
+function entryLine(e){
+  const allEq=e.reps.every(r=>r===e.reps[0]);
+  const setsStr=allEq? e.reps.length+'x'+e.reps[0] : e.reps.join('/');
+  const wStr=e.bw?'':' '+fmtW(e.w)+'kg';
+  const plus=hitTarget(e)?' +':'';
+  return '– '+e.name+wStr+' '+setsStr+' (→'+e.target+')'+(e.fail?' f':'')+plus;
+}
+function sessionText(s){ return dstr(s.date)+':\n'+s.entries.map(e=>'\t'+entryLine(e)).join('\n'); }
+function allText(){ return S.log.map(sessionText).join('\n\n'); }
+async function copyText(txt){
+  try{ await navigator.clipboard.writeText(txt); toast('Gekopieerd'); }
+  catch(e){
+    const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy'); ta.remove(); toast('Gekopieerd');
+  }
+}
+async function backup(){
+  const data=JSON.stringify(S,null,1);
+  const name='gym-logger-backup-'+todayISO()+'.json';
+  if(window.claude && window.claude.downloads){
+    try{ await window.claude.downloads.save({filename:name, data}); toast('Backup opgeslagen'); return; }
+    catch(e){ /* geweigerd of mislukt → fallback */ }
+  }
+  const a=document.createElement('a');
+  a.href='data:application/json;charset=utf-8,'+encodeURIComponent(data);
+  a.download=name; document.body.appendChild(a); a.click(); a.remove();
+}
+/* ---------- import uit iPhone Notes ---------- */
+function canonName(s){
+  return s.toLowerCase().replace(/[^a-z0-9]/g,'')
+    .replace('rotary','rot').replace('incline','incl').replace('preacher','preach')
+    .replace('dumbbell','db').replace('machine','');
+}
+function sameEx(a,b){ const x=canonName(a), y=canonName(b); return x===y || (x.length>3 && y.length>3 && (x.includes(y)||y.includes(x))); }
+function parseNoteLine(body){
+  let t=body.trim(), fail=false, m;
+  while((m=t.match(/\s([fF+])\s*$/))){ if(m[1].toLowerCase()==='f') fail=true; t=t.slice(0,m.index); }
+  let target=null;
+  t=t.replace(/\(\s*(?:→|->|—>|–>|>)?\s*(\d+)\s*\)/,(mm,g)=>{ target=+g; return ''; });
+  let sets=null, reps=null;
+  t=t.replace(/(\d+)\s*[xX×]\s*(\d+)/,(mm,a,b)=>{ sets=+a; reps=+b; return ''; });
+  if(sets==null) return null;
+  let w=null;
+  t=t.replace(/(\d+(?:[.,]\d+)?)\s*kg/i,(mm,g)=>{ w=parseFloat(g.replace(',','.')); return ''; });
+  const name=t.replace(/\s+/g,' ').trim().replace(/[-–:]+$/,'').trim();
+  if(!name) return null;
+  return {name, w, bw:w==null, sets, reps, target, fail};
+}
+function importNotes(){
+  const ta=$('#imp-ta'), yr=parseInt($('#imp-year').value);
+  if(!ta.value.trim()){ toast('Plak eerst je notities'); return; }
+  if(!yr || yr<2015 || yr>2100){ toast('Vul een geldig jaartal in'); return; }
+  const MM={jan:0,feb:1,mrt:2,mar:2,apr:3,mei:4,may:4,jun:5,jul:6,aug:7,sep:8,okt:9,oct:9,nov:10,dec:11};
+  const dayRe=/^\s*(ma|di|wo|do|vr|za|zo)\s+(\d{1,2})\s+([a-z]{3})/i;
+  let year=yr, prevD=null, cur=null, skippedLines=0;
+  const sessions=[];
+  ta.value.split(/\r?\n/).forEach(raw=>{
+    const line=raw.trim(); if(!line) return;
+    const dm=line.match(dayRe);
+    if(dm){
+      const mon=MM[dm[3].toLowerCase()];
+      if(mon==null){ cur=null; return; }
+      let dt=new Date(year, mon, +dm[2], 12);
+      if(prevD && dt<prevD){ year++; dt=new Date(year, mon, +dm[2], 12); }
+      prevD=dt;
+      const iso=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+      cur={date:iso, entries:[]}; sessions.push(cur); return;
+    }
+    const em=line.match(/^[–\-−•∙·]\s*(.+)$/);
+    if(!em || !cur) return;
+    const p=parseNoteLine(em[1]);
+    if(p) cur.entries.push(p); else skippedLines++;
+  });
+  let added=0, dupes=0;
+  sessions.filter(s=>s.entries.length).forEach(s=>{
+    let best=null, bestScore=0;
+    S.days.forEach(d=>{
+      const sc=s.entries.filter(e=>d.ex.some(x=>sameEx(x.name,e.name))).length;
+      if(sc>bestScore){ bestScore=sc; best=d; }
+    });
+    const day=bestScore>=2? best : null;
+    const dayId=day? day.id : 'imp';
+    if(S.log.some(l=>l.date===s.date && l.dayId===dayId)){ dupes++; return; }
+    const entries=s.entries.map(e=>{
+      const x=day? day.ex.find(x=>sameEx(x.name,e.name)) : null;
+      return {exId: x? x.id : 'imp-'+canonName(e.name), name:e.name, w:e.w==null?0:e.w, bw:e.bw,
+              reps:Array(e.sets).fill(e.reps), fail:e.fail, target: e.target!=null? e.target : (x? x.target : e.reps)};
+    });
+    S.log.push({id:s.date+'-'+dayId+'-'+Math.random().toString(36).slice(2,7), date:s.date, dayId, entries});
+    added++;
+  });
+  S.log.sort((a,b)=> a.date<b.date? -1 : a.date>b.date? 1 : 0);
+  persist(); render();
+  alert('Import klaar:\n• '+added+' trainingen toegevoegd\n• '+dupes+' overgeslagen (stonden er al in)'+(skippedLines?'\n• '+skippedLines+' regels niet herkend':''));
+}
+
+function restore(){
+  const ta=$('#restore-ta'); if(!ta||!ta.value.trim()){ toast('Plak eerst je backup'); return; }
+  let obj; try{ obj=JSON.parse(ta.value) }catch(e){ toast('Geen geldige backup'); return; }
+  if(!obj.days||!obj.log){ toast('Geen geldige backup'); return; }
+  if(!confirm('Huidige data overschrijven met deze backup?')) return;
+  S=obj; persist(); render(); toast('Backup teruggezet');
+}
+
+/* ---------- views ---------- */
+function render(){
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
+  const app=$('#app');
+  if(tab==='train') app.innerHTML = (S.draft && !homeOverride)? vTraining() : vHome();
+  else if(tab==='hist') app.innerHTML = vHist();
+  else app.innerHTML = vSchema();
+}
+
+function vHome(){
+  const nx=nextDay();
+  let h='<h1><small>Gym Logger</small>Volgende training</h1>';
+  if(S.draft){
+    const day=S.days.find(d=>d.id===S.draft.dayId);
+    const n=S.draft.entries.filter(draftEntryDone).length;
+    h+='<button class="bigbtn" data-a="resume"><span class="eyebrow">Training bezig</span><div class="t">Ga verder: '+esc(day.name)+'</div><div class="eyebrow num" style="margin-top:4px">'+n+'/'+S.draft.entries.length+' oefeningen gedaan</div></button>';
+  }else{
+    h+='<button class="bigbtn" data-a="start" data-day="'+nx.id+'"><span class="eyebrow">Aanbevolen</span><div class="t">'+esc(nx.name)+'</div></button>';
+  }
+  h+='<div class="daygrid">';
+  S.days.filter(d=>!(S.draft? d.id===S.draft.dayId : d.id===nx.id)).forEach(d=>{
+    const lastD=[...S.log].reverse().find(l=>l.dayId===d.id);
+    h+='<button class="daybtn" data-a="start" data-day="'+d.id+'"><div class="t">'+esc(d.name)+'</div><div class="s">'+(lastD?'laatst '+dstr(lastD.date):'nog niet gedaan')+'</div></button>';
+  });
+  h+='</div>';
+  h+='<div class="card fold" id="fold-rules"><button class="fold-head" data-a="fold" data-f="fold-rules">Regels &amp; technieken <span class="arr">›</span></button><div class="fold-body"><ul>'+RULES.map(r=>'<li>'+esc(r)+'</li>').join('')+'</ul></div></div>';
+  return h;
+}
+
+function vTraining(){
+  const d=S.draft, day=S.days.find(x=>x.id===d.dayId);
+  const nDone=d.entries.filter(draftEntryDone).length;
+  let h='<button class="back" data-a="back">‹ Overzicht</button>';
+  h+='<h1><small>'+dstr(d.date)+'</small>'+esc(day.name)+' <span class="num" style="font-size:14px;color:var(--muted)">'+nDone+'/'+d.entries.length+'</span></h1>';
+  h+='<div class="card fold" id="fold-wu"><button class="fold-head" data-a="fold" data-f="fold-wu">Warming-up (5 min) <span class="arr">›</span></button><div class="fold-body"><ul>'+WARMUP[day.warm].map(r=>'<li>'+esc(r)+'</li>').join('')+'</ul></div></div>';
+  d.entries.forEach((e,i)=>{
+    const open=d.open===i;
+    const doneAll=e.sets.every(s=>s.done);
+    h+='<div class="card ex'+(open?' open':'')+'">';
+    h+='<button class="ex-head" data-a="exopen" data-i="'+i+'"><span class="ex-done-dot'+(draftEntryDone(e)?' on':'')+'"></span><span class="name">'+esc(e.name)+'</span><span class="sum num">'+(e.bw?'':fmtW(e.w)+' kg · ')+e.sets.length+' sets</span></button>';
+    h+='<div class="ex-body">';
+    if(e.up) h+='<span class="badge up">Nieuw gewicht ↑</span>';
+    h+='<span class="badge tgt num">doel →'+e.target+' reps</span>';
+    if(e.prev) h+='<div class="hint num" style="margin-bottom:8px">Vorige keer: '+esc(e.prev)+'</div>';
+    if(!e.bw){
+      h+='<div class="wrow"><span class="lbl">Gewicht</span><button class="stp num" data-a="w" data-i="'+i+'" data-d="-1">−</button><span class="wval num">'+fmtW(e.w)+' kg</span><button class="stp num" data-a="w" data-i="'+i+'" data-d="1">+</button></div>';
+    }
+    e.sets.forEach((s,j)=>{
+      h+='<div class="setrow'+(s.done?' done':'')+'"><span class="lbl">Set '+(j+1)+'</span><button class="stp num" data-a="r" data-i="'+i+'" data-j="'+j+'" data-d="-1">−</button><span class="reps num">'+s.reps+'</span><button class="stp num" data-a="r" data-i="'+i+'" data-j="'+j+'" data-d="1">+</button><button class="chk" data-a="done" data-i="'+i+'" data-j="'+j+'">✓</button></div>';
+    });
+    h+='<div class="exfoot"><button class="fbtn'+(e.fail?' on':'')+'" data-a="fail" data-i="'+i+'">f</button><button class="fbtn" data-a="addset" data-i="'+i+'">+ set</button><button class="fbtn" data-a="rmset" data-i="'+i+'">− set</button></div>';
+    h+='<div class="hint" style="margin-top:8px">'+(e.fail?'gefaald genoteerd':'tik f als het niet lukte')+(doneAll&&Math.min(...e.sets.map(s=>s.reps))>=e.target?' · doel gehaald, volgende keer +':'')+'</div>';
+    h+='</div></div>';
+  });
+  h+='<button class="primary" data-a="finish">Training opslaan</button>';
+  h+='<button class="ghost danger" data-a="cancel">Training afbreken</button>';
+  return h;
+}
+
+function vHist(){
+  let h='<h1><small>Logboek</small>Historie</h1>';
+  if(!S.log.length){ h+='<div class="card"><div class="empty">Nog geen trainingen gelogd.</div></div>'; }
+  else{
+    h+='<div class="card">';
+    [...S.log].reverse().forEach(s=>{
+      const day=S.days.find(d=>d.id===s.dayId);
+      h+='<div class="sess"><div class="sess-head"><span class="d">'+dstr(s.date)+'</span><span class="hint">'+esc(day?day.name:'')+'</span><button class="del" data-a="del" data-id="'+s.id+'">✕</button></div><ul class="num">';
+      s.entries.forEach(e=>{
+        let line=esc(e.name)+(e.bw?'':' '+fmtW(e.w)+'kg');
+        const allEq=e.reps.every(r=>r===e.reps[0]);
+        line+=' '+(allEq? e.reps.length+'x'+e.reps[0] : e.reps.join('/'))+' (→'+e.target+')';
+        h+='<li>'+line+(e.fail?' <span class="flag-f">f</span>':'')+(hitTarget(e)?' <span class="flag-p">+</span>':'')+'</li>';
+      });
+      h+='</ul></div>';
+    });
+    h+='</div>';
+    h+='<button class="ghost" data-a="copyall">📋 Kopieer alles als tekst (Notes-formaat)</button>';
+  }
+  h+='<div class="card card-pad"><div style="font-weight:700;margin-bottom:6px">Importeer uit iPhone Notes</div><p class="hint" style="margin:0 0 10px">Plak hieronder je hele notitie (dagkoppen zoals “Zo 19 Jul:” met daaronder de oefeningen). Dubbele dagen worden overgeslagen.</p><label class="hint">Jaartal van de bovenste (oudste) dag</label><input type="number" class="numin" id="imp-year" value="'+new Date().getFullYear()+'" style="margin:4px 0 10px"><textarea id="imp-ta" placeholder="Zo 19 Jul:&#10;	– Bench 50kg 4x7 (→10) f&#10;	– Row machine 60kg 3x10 (→10)&#10;…"></textarea><button class="ghost" style="margin-top:10px" data-a="import">Importeren</button></div>';
+  h+='<button class="ghost" data-a="backup">💾 Backup maken (JSON)</button>';
+  h+='<div class="card card-pad"><div style="font-weight:700;margin-bottom:8px">Backup terugzetten</div><textarea id="restore-ta" placeholder="Plak hier de inhoud van je backup-bestand"></textarea><button class="ghost" style="margin-top:10px" data-a="restore">Terugzetten</button></div>';
+  return h;
+}
+
+function vSchema(){
+  let h='<h1><small>Oefeningen &amp; gewichten</small>Schema</h1>';
+  S.days.forEach(day=>{
+    h+='<div class="card"><div class="dayhead">'+esc(day.name)+'</div>';
+    day.ex.forEach((x,i)=>{
+      const key=day.id+'/'+x.id;
+      h+='<button class="schx" data-a="edit" data-k="'+key+'"><span class="name">'+esc(x.name)+'</span><span class="sum num">'+(x.bw?'lich.gew.':fmtW(x.w)+' kg')+' · '+x.sets+'×→'+x.target+'</span></button>';
+      if(openEdit===key){
+        h+='<div class="edit">';
+        h+='<label>Naam</label><input type="text" id="e-name" value="'+esc(x.name)+'">';
+        h+='<div class="row2"><div><label>Gewicht (kg)</label><input type="number" id="e-w" step="0.5" value="'+x.w+'"'+(x.bw?' disabled':'')+'></div><div><label>Sets</label><input type="number" id="e-sets" step="1" min="1" value="'+x.sets+'"></div><div><label>Doel reps</label><input type="number" id="e-target" step="1" min="1" value="'+x.target+'"></div></div>';
+        h+='<label>Gewichtsstap bij verhoging (kg)</label><input type="number" id="e-step" step="0.5" value="'+x.step+'"'+(x.bw?' disabled':'')+'>';
+        h+='<div class="cbrow"><input type="checkbox" id="e-bw"'+(x.bw?' checked':'')+'><label for="e-bw" style="margin:0;font-size:14px;color:var(--ink)">Lichaamsgewicht (geen extra gewicht)</label></div>';
+        h+='<div class="btns"><button class="fbtn" data-a="save-ex" data-k="'+key+'">Opslaan</button><button class="fbtn" data-a="mv" data-k="'+key+'" data-d="-1">↑</button><button class="fbtn" data-a="mv" data-k="'+key+'" data-d="1">↓</button><button class="fbtn danger" data-a="del-ex" data-k="'+key+'">Verwijderen</button></div>';
+        h+='</div>';
+      }
+    });
+    h+='<button class="addbtn" data-a="add-ex" data-day="'+day.id+'">+ Oefening toevoegen</button>';
+    h+='</div>';
+  });
+  h+='<p class="hint" style="margin:4px 2px 20px">Gewichten hier zijn het startpunt; na elke training wordt het laatst gebruikte gewicht automatisch onthouden. Data staat in deze browser op dit toestel — maak af en toe een backup via Historie.</p>';
+  return h;
+}
+
+/* ---------- events ---------- */
+document.getElementById('tabs').addEventListener('click',ev=>{
+  const b=ev.target.closest('button'); if(!b) return;
+  tab=b.dataset.tab; openEdit=null; render();
+  window.scrollTo(0,0);
+});
+
+document.getElementById('app').addEventListener('click',ev=>{
+  const b=ev.target.closest('[data-a]'); if(!b) return;
+  const a=b.dataset.a;
+
+  if(a==='fold'){ document.getElementById(b.dataset.f).classList.toggle('open'); return; }
+  if(a==='resume'){ homeOverride=false; render(); window.scrollTo(0,0); return; }
+  if(a==='start'){
+    if(S.draft){
+      if(S.draft.dayId===b.dataset.day){ homeOverride=false; render(); return; }
+      const day=S.days.find(x=>x.id===S.draft.dayId);
+      if(S.draft.entries.some(draftEntryDone)){
+        if(!confirm('Je hebt nog een training openstaan ('+day.name+'). Die weggooien en deze starten?')) return;
+      }
+      S.draft=null;
+    }
+    startDraft(b.dataset.day); window.scrollTo(0,0); return;
+  }
+
+  if(S.draft){
+    const d=S.draft;
+    if(a==='back'){
+      if(!d.entries.some(draftEntryDone)){ S.draft=null; } // niets ingevuld → gewoon weggooien
+      else homeOverride=true;
+      persist(); render(); window.scrollTo(0,0); return;
+    }
+    if(a==='addset'){ const e=d.entries[+b.dataset.i]; e.sets.push({reps:e.sets[e.sets.length-1].reps, done:false}); persist(); render(); return; }
+    if(a==='rmset'){
+      const e=d.entries[+b.dataset.i];
+      if(e.sets.length<=1) return;
+      const s=e.sets[e.sets.length-1];
+      if(s.done && !confirm('Laatste set is al afgevinkt. Toch verwijderen?')) return;
+      e.sets.pop(); persist(); render(); return;
+    }
+    if(a==='exopen'){ const i=+b.dataset.i; d.open = d.open===i? -1 : i; persist(); render(); return; }
+    if(a==='w'){ const e=d.entries[+b.dataset.i]; e.w=Math.max(0,Math.round((e.w + (+b.dataset.d)*e.step)*100)/100); e.up=false; persist(); render(); return; }
+    if(a==='r'){ const e=d.entries[+b.dataset.i], s=e.sets[+b.dataset.j]; s.reps=Math.max(0,s.reps+(+b.dataset.d)); s.done=true; persist(); render(); return; }
+    if(a==='done'){
+      const i=+b.dataset.i, e=d.entries[i], s=e.sets[+b.dataset.j];
+      s.done=!s.done; persist();
+      if(e.sets.every(x=>x.done)){ // alles af → volgende oefening openen
+        const nx=d.entries.findIndex((x,k)=>k>i && !x.sets.every(s=>s.done));
+        d.open = nx>=0? nx : -1; persist();
+      }
+      render(); return;
+    }
+    if(a==='fail'){ const e=d.entries[+b.dataset.i]; e.fail=!e.fail; persist(); render(); return; }
+    if(a==='finish'){ finishDraft(); return; }
+    if(a==='cancel'){ if(confirm('Training afbreken? Ingevoerde sets gaan verloren.')){ S.draft=null; persist(); render(); } return; }
+  }
+
+  if(a==='del'){
+    const s=S.log.find(x=>x.id===b.dataset.id);
+    if(s && confirm('Training van '+dstr(s.date)+' verwijderen?')){ S.log=S.log.filter(x=>x.id!==s.id); persist(); render(); }
+    return;
+  }
+  if(a==='copyall'){ copyText(allText()); return; }
+  if(a==='import'){ importNotes(); return; }
+  if(a==='backup'){ backup(); return; }
+  if(a==='restore'){ restore(); return; }
+
+  if(a==='edit'){ openEdit = openEdit===b.dataset.k? null : b.dataset.k; render(); return; }
+  if(a==='save-ex'||a==='del-ex'||a==='mv'){
+    const [dayId,exId]=b.dataset.k.split('/');
+    const day=S.days.find(x=>x.id===dayId); const i=day.ex.findIndex(x=>x.id===exId);
+    if(a==='del-ex'){
+      if(confirm('Oefening "'+day.ex[i].name+'" verwijderen uit het schema? (Historie blijft bewaard.)')){ day.ex.splice(i,1); openEdit=null; persist(); render(); }
+      return;
+    }
+    if(a==='mv'){
+      const j=i+(+b.dataset.d);
+      if(j>=0&&j<day.ex.length){ const t=day.ex[i]; day.ex[i]=day.ex[j]; day.ex[j]=t; persist(); render(); }
+      return;
+    }
+    const x=day.ex[i];
+    x.name=$('#e-name').value.trim()||x.name;
+    x.bw=$('#e-bw').checked;
+    x.w=x.bw?0:(parseFloat($('#e-w').value)||0);
+    x.sets=Math.max(1,parseInt($('#e-sets').value)||x.sets);
+    x.target=Math.max(1,parseInt($('#e-target').value)||x.target);
+    x.step=x.bw?0:(parseFloat($('#e-step').value)||0);
+    openEdit=null; persist(); render(); toast('Opgeslagen');
+    return;
+  }
+  if(a==='add-ex'){
+    const day=S.days.find(x=>x.id===b.dataset.day);
+    const id='x'+Date.now().toString(36);
+    day.ex.push({id, name:'Nieuwe oefening', w:20, sets:3, target:12, step:2.5, bw:false});
+    openEdit=day.id+'/'+id; persist(); render();
+    return;
+  }
+});
+
+render();
+</script>
