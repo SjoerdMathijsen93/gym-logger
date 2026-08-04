@@ -380,11 +380,16 @@ async function syncPush(manual){
       headers:{'Authorization':'Bearer '+cfg.token,'Accept':'application/vnd.github+json'},
       body:JSON.stringify({files:{'gym-logger-data.json':{content}}})
     });
-    if(!r.ok) throw new Error('HTTP '+r.status);
+    if(!r.ok) throw new Error(syncErr(r.status));
     cfg.lastSync=new Date().toISOString();
     localStorage.setItem(SYNC_KEY,JSON.stringify(cfg));
     if(manual){ toast('Gesynct ✓'); render(); }
-  }catch(e){ if(manual) toast('Sync mislukt ('+e.message+')'); }
+  }catch(e){ if(manual) toast('Sync mislukt: '+e.message); }
+}
+function syncErr(status){
+  if(status===401||status===403) return 'token ongeldig — plak een nieuwe token';
+  if(status===404) return 'gist-ID klopt niet';
+  return 'HTTP '+status;
 }
 async function syncPull(){
   const cfg=syncCfg();
@@ -393,7 +398,7 @@ async function syncPull(){
     const r=await fetch('https://api.github.com/gists/'+cfg.gistId,{
       headers:{'Authorization':'Bearer '+cfg.token,'Accept':'application/vnd.github+json'}
     });
-    if(!r.ok) throw new Error('HTTP '+r.status);
+    if(!r.ok) throw new Error(syncErr(r.status));
     const g=await r.json();
     const f=g.files && g.files['gym-logger-data.json'];
     if(!f) throw new Error('bestand niet gevonden in gist');
@@ -402,8 +407,18 @@ async function syncPull(){
     if(!confirm('Historie ophalen van sync ('+data.log.length+' trainingen, laatst bijgewerkt '+String(data.updated).slice(0,10)+')? Dit vervangt de data op dit toestel.')) return;
     S.days=data.days; S.log=data.log; S.draft=null;
     persist(); render(); toast('Hersteld vanaf sync ✓');
-  }catch(e){ toast('Ophalen mislukt ('+e.message+')'); }
+  }catch(e){ toast('Ophalen mislukt: '+e.message); }
 }
+/* eenmalige setup via link: #gist=<id> stelt het sync-adres automatisch in */
+(function(){
+  const m=location.hash.match(/#gist=([a-f0-9]{16,40})/i);
+  if(!m) return;
+  const cfg=syncCfg();
+  cfg.gistId=m[1];
+  localStorage.setItem(SYNC_KEY,JSON.stringify(cfg));
+  history.replaceState(null,'',location.pathname+location.search);
+  setTimeout(()=>toast('Sync-adres ingesteld ✓'),300);
+})();
 
 /* ---------- export ---------- */
 function entryLine(e){
@@ -641,8 +656,10 @@ function vSchema(){
   const cfg=syncCfg();
   h+='<div class="card card-pad"><div style="font-weight:700;margin-bottom:6px">Sync naar laptop</div>';
   h+='<p class="hint" style="margin:0 0 10px">Na elke opgeslagen training stuurt de app je log automatisch naar je eigen GitHub, zodat het maandag-weekrapport op je laptop erbij kan. Plak hier eenmalig een GitHub-token met alleen “gist”-recht.</p>';
-  h+='<input type="password" class="numin" id="s-token" placeholder="'+(cfg.token?'••• token ingesteld — plak om te vervangen':'ghp_…')+'">';
-  h+='<label class="hint" style="display:block;margin-top:8px">Gist-ID (privé-opslagplek)</label>';
+  h+='<p class="hint" style="margin:0 0 10px;font-weight:700">Status: token '+(cfg.token?'✓':'ontbreekt ✗')+' · sync-adres '+(cfg.gistId?'✓':'ontbreekt ✗')+'</p>';
+  h+='<label class="hint" style="display:block">1. GitHub-token (begint met ghp_)</label>';
+  h+='<input type="password" class="numin" id="s-token" placeholder="'+(cfg.token?'••• ingesteld — alleen plakken om te vervangen':'ghp_…')+'" style="margin-top:4px">';
+  h+='<label class="hint" style="display:block;margin-top:8px">2. Sync-adres (gist-ID)</label>';
   h+='<input type="text" class="numin" id="s-gist" value="'+esc(cfg.gistId||'')+'" placeholder="bijv. 3a1b…" style="margin-top:4px">';
   h+='<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="fbtn" data-a="save-token">Opslaan</button><button class="fbtn" data-a="syncnow">Sync nu</button><button class="fbtn" data-a="syncpull">Herstel vanaf sync</button></div>';
   h+='<p class="hint" style="margin:10px 0 0">'+(cfg.lastSync? 'Laatste sync: '+dstr(cfg.lastSync.slice(0,10))+' '+cfg.lastSync.slice(11,16) : 'Nog niet gesynct.')+'</p></div>';
