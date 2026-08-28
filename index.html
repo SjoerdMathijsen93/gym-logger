@@ -210,8 +210,8 @@ function seed(){
       E('rotA','Rotary torso machine',30,3,20,5), E('crunch','Mach crunch',30,3,20,5),
     ]),
     D('ub','Upper B','upper',[
-      E('incdb','Incl db press',52,4,10,2), E('rowB','Row machine',65,4,10,5),
-      E('ohp','OH press',36,3,10,2.5), E('fly','Pec fly',30,3,12,5),
+      E('incdb','Incl db press',52,4,10,2), E('pullB','Neutral grip pull-ups',0,3,12,0,true),
+      E('ohp','OH press',36,3,10,4), E('fly','Pec fly',30,3,12,5),
       E('rpd','Rev pec deck',20,3,12,5), E('preach','Incl preach curl',14,3,12,2),
     ]),
     D('lb','Lower B','lower',[
@@ -228,6 +228,23 @@ function seed(){
 let S;
 try{ S=JSON.parse(localStorage.getItem(LS_KEY)) }catch(e){ S=null }
 if(!S || !S.days){ S=seed(); persist(); }
+
+/* migraties: schema-wijzigingen die automatisch op bestaande toestellen landen */
+(function(){
+  S.migr=S.migr||0;
+  if(S.migr<1){
+    // 28 aug 2026: Upper B — Row machine vervangen door pull-ups (2e trekfrequentie, row blijft op Upper A);
+    // OH press is met dumbbells -> stap 4 kg (2 per dumbbell)
+    const ub=S.days.find(d=>d.id==='ub');
+    if(ub){
+      const i=ub.ex.findIndex(x=>canonP(x.name)==='row');
+      if(i>=0) ub.ex[i]={id:'pullB', name:'Neutral grip pull-ups', w:0, sets:3, target:12, step:0, bw:true};
+      const ohp=ub.ex.find(x=>canonP(x.name)==='ohpres');
+      if(ohp && ohp.step===2.5) ohp.step=4;
+    }
+    S.migr=1; persist();
+  }
+})();
 function persist(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(S)) }catch(e){} }
 
 let tab='train';
