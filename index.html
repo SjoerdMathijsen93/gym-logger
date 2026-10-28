@@ -4,24 +4,24 @@
 :root{
   --bg:#f5f4f1; --surface:#ffffff; --surface2:#eceae5; --ink:#1c1e22; --muted:#6b7078;
   --line:#dcdad4; --accent:#3f6fc4; --accent-ink:#ffffff; --good:#2f8a58; --good-bg:#e2f2e8;
-  --bad:#c14f4f; --bad-bg:#f7e4e4; --chip:#e7e5e0;
+  --bad:#c14f4f; --bad-bg:#f7e4e4; --chip:#e7e5e0; --cardio:#c7702a;
 }
 @media (prefers-color-scheme: dark){
   :root{
     --bg:#101318; --surface:#1a1f26; --surface2:#232933; --ink:#edeae3; --muted:#8b929c;
     --line:#2b323c; --accent:#6fa1f2; --accent-ink:#0d1117; --good:#4cc07d; --good-bg:#1d3328;
-    --bad:#e07070; --bad-bg:#3a2222; --chip:#2a3038;
+    --bad:#e07070; --bad-bg:#3a2222; --chip:#2a3038; --cardio:#f0a35e;
   }
 }
 :root[data-theme="dark"]{
   --bg:#101318; --surface:#1a1f26; --surface2:#232933; --ink:#edeae3; --muted:#8b929c;
   --line:#2b323c; --accent:#6fa1f2; --accent-ink:#0d1117; --good:#4cc07d; --good-bg:#1d3328;
-  --bad:#e07070; --bad-bg:#3a2222; --chip:#2a3038;
+  --bad:#e07070; --bad-bg:#3a2222; --chip:#2a3038; --cardio:#f0a35e;
 }
 :root[data-theme="light"]{
   --bg:#f5f4f1; --surface:#ffffff; --surface2:#eceae5; --ink:#1c1e22; --muted:#6b7078;
   --line:#dcdad4; --accent:#3f6fc4; --accent-ink:#ffffff; --good:#2f8a58; --good-bg:#e2f2e8;
-  --bad:#c14f4f; --bad-bg:#f7e4e4; --chip:#e7e5e0;
+  --bad:#c14f4f; --bad-bg:#f7e4e4; --chip:#e7e5e0; --cardio:#c7702a;
 }
 *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
 html,body{margin:0; padding:0}
@@ -161,6 +161,20 @@ textarea{
 .stat{flex:1; background:var(--surface2); border-radius:10px; padding:9px 6px; text-align:center}
 .stat .v{font-weight:800; font-size:16px}
 .stat .l{font-size:11px; color:var(--muted); margin-top:1px}
+
+/* cardio */
+.cbtn{border-left:4px solid var(--cardio); width:100%}
+.cbtn .fx{color:var(--cardio)}
+.lblh{font-size:12px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-bottom:6px}
+.ctip{font-size:14px; background:var(--surface2)}
+.blks{display:grid; grid-template-columns:repeat(4,1fr); gap:8px}
+.blk{height:48px; border-radius:10px; border:1px solid var(--line); background:var(--surface2); font-weight:700; font-size:14px; color:var(--muted)}
+.blk.on{background:var(--good); border-color:var(--good); color:#fff}
+.rpes{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+.rpes .fbtn{padding:10px 4px; white-space:nowrap}
+.rpes .fbtn.on{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+.legend{display:flex; gap:14px; font-size:12px; color:var(--muted); margin-top:8px}
+.legend i{display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:-1px}
 
 /* tab bar */
 #tabs{
@@ -385,6 +399,67 @@ function finishDraft(){
   syncPush(false);
 }
 
+/* ---------- cardio (staat in S.log als dayId 'cardio', zodat sync/merge vanzelf meedoen) ---------- */
+const CDEV={band:{name:'Loopband',unit:'kmh'}, buiten:{name:'Buiten',unit:'pace'}, stair:{name:'Stairmaster',unit:'lvl'}};
+const CTYPE={A:{name:'4×4 intervals',min:38}, B:{name:'Tempoloop',min:35}};
+const CDEF={A:{band:12.5,buiten:290,stair:10}, B:{band:11,buiten:330,stair:7}}; // starttempo's (schatting)
+const CSTEPS={kmh:[-1,-0.5,0.5,1], pace:[-15,-5,5,15], lvl:[-2,-1,1,2]};
+const RPE=['','😌','😤','💀'], RPE_L=['','licht','pittig','kapot'];
+const fmtPace=s=>Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+function fmtInt(unit,v){ return unit==='kmh'? fmtW(v)+' km/u' : unit==='pace'? fmtPace(v)+' /km' : 'stand '+v; }
+function cardioLog(){ return S.log.filter(s=>s.dayId==='cardio' && s.cardio); }
+function lastCardio(type,dev){
+  const l=cardioLog().filter(s=>(!type||s.cardio.type===type) && (!dev||s.cardio.dev===dev));
+  return l.length? l[l.length-1] : null;
+}
+function mondayISO(){ const now=new Date(), m=new Date(now); m.setDate(now.getDate()-((now.getDay()+6)%7)); return isoD(m); }
+function cardioWeek(){ const m=mondayISO(); return cardioLog().filter(s=>s.date>=m); }
+function cardioLine(c){
+  return CTYPE[c.type].name+' · '+CDEV[c.dev].name+' · '+fmtInt(CDEV[c.dev].unit,c.val)+' · '+c.min+' min'
+    +(c.km? ' · '+fmtW(c.km)+' km' : '')
+    +(c.type==='A' && c.blocks? ' · blokken '+c.blocks.filter(Boolean).length+'/4' : '')
+    +(c.rpe? ' · '+RPE[c.rpe] : '');
+}
+function cardioFill(type,dev){
+  // geen automatische progressie: gewoon overnemen wat je vorige keer deed (zelfde sessie + plek)
+  const last=lastCardio(type,dev);
+  return {type, dev, val: last? last.cardio.val : CDEF[type][dev], min: last? last.cardio.min : CTYPE[type].min,
+          km: last? (last.cardio.km||0) : 0, blocks:[false,false,false,false], rpe:0};
+}
+function cProto(c){
+  if(c.type==='A') return '8 min inlopen → 4× (4 min hard + 3 min rustig) → 5 min uitlopen · ±38 min. Het laatste blok moet nét lukken.'
+    +({band:' Rustig = 6–7 km/u, helling 1%.', buiten:' Rustig = wandelen of sukkeldraf.', stair:' Rustig = stand 4–5.'})[c.dev];
+  return '5 min inlopen → 20–30 min stevig door (praten lukt in een paar woorden) → 5 min uitlopen · ±35 min.'
+    +({band:' Helling 1%.', buiten:'', stair:' Gelijkmatig, niet op de leuning hangen.'})[c.dev];
+}
+function cardioTip(){
+  const nx=dayOrder()[0]; if(!nx) return '';
+  const lower=nx.d.warm==='lower', lc=lastCardio();
+  if(lc && lc.cardio.type==='A' && lc.date===todayISO())
+    return lower? '4×4 gedaan vandaag — '+nx.d.name+' liefst pas over 24 uur, of doe eerst een Upper-dag.' : '4×4 gedaan vandaag — '+nx.d.name+' kan gewoon morgen.';
+  return lower? nx.d.name+' is je volgende krachtdag: doe de 4×4 liever ná die dag, of kies vandaag B (tempo).'
+              : nx.d.name+' is je volgende krachtdag: prima moment voor een 4×4.';
+}
+function startCardio(){
+  const lc=lastCardio();
+  const type=cardioWeek().some(s=>s.cardio.type==='A')? 'B' : 'A';   // vaste 4×4 eerst, daarna bonus
+  S.cdraft={...cardioFill(type, lc? lc.cardio.dev : 'band'), date:todayISO()};
+  homeOverride=false; persist(); render();
+}
+function saveCardio(){
+  const c=S.cdraft;
+  if(S.log.some(s=>s.date===c.date && s.dayId==='cardio') &&
+     !confirm('Je hebt vandaag al cardio gelogd. Vervangen door deze sessie?')) return;
+  const rec={type:c.type, dev:c.dev, val:c.val, min:c.min,
+    ...(c.km? {km:Math.round(c.km*10)/10} : {}), ...(c.type==='A'? {blocks:c.blocks} : {}), ...(c.rpe? {rpe:c.rpe} : {})};
+  S.log=S.log.filter(s=>!(s.date===c.date && s.dayId==='cardio')); // 1 per dag (sync-sleutel = datum+dag)
+  S.log.push({id:c.date+'-cardio-'+S.log.length, date:c.date, dayId:'cardio', entries:[], cardio:rec});
+  S.log.sort((a,b)=> a.date<b.date? -1 : a.date>b.date? 1 : 0);
+  S.cdraft=null; homeOverride=!!S.draft; persist(); render();
+  toast('Cardio opgeslagen 🏃');
+  syncPush(false);
+}
+
 /* ---------- sync naar gist (voor weekrapport op laptop) ---------- */
 const SYNC_KEY='gymlogger-sync';
 function syncCfg(){ try{ return JSON.parse(localStorage.getItem(SYNC_KEY))||{} }catch(e){ return {} } }
@@ -465,7 +540,10 @@ function entryLine(e){
   const tgtStr=e.target?' (→'+e.target+')':'';
   return '– '+e.name+wStr+' '+setsStr+tgtStr+(e.fail?' f':'')+plus;
 }
-function sessionText(s){ return dstr(s.date)+':\n'+s.entries.map(e=>'\t'+entryLine(e)).join('\n'); }
+function sessionText(s){
+  if(s.cardio) return dstr(s.date)+':\n\t– Cardio: '+cardioLine(s.cardio);
+  return dstr(s.date)+':\n'+s.entries.map(e=>'\t'+entryLine(e)).join('\n');
+}
 function allText(){ return S.log.map(sessionText).join('\n\n'); }
 async function copyText(txt){
   try{ await navigator.clipboard.writeText(txt); toast('Gekopieerd'); }
@@ -566,7 +644,7 @@ function restore(){
 function render(){
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
   const app=$('#app');
-  if(tab==='train') app.innerHTML = (S.draft && !homeOverride)? vTraining() : vHome();
+  if(tab==='train') app.innerHTML = (S.cdraft && !homeOverride)? vCardio() : (S.draft && !homeOverride)? vTraining() : vHome();
   else if(tab==='hist') app.innerHTML = vHist();
   else if(tab==='prog') app.innerHTML = vProg();
   else if(tab==='freq') app.innerHTML = vFreq();
@@ -589,14 +667,52 @@ function vHome(){
     h+='<button class="bigbtn" data-a="resume"><span class="eyebrow">Training bezig</span><div class="t">Ga verder: '+esc(day.name)+'</div><div class="eyebrow num" style="margin-top:4px">'+n+'/'+S.draft.entries.length+' oefeningen gedaan</div></button>';
   }
   h+='<div class="daygrid">';
-  // volgorde: wie het langst geleden is gedaan staat bovenaan (= de volgende)
-  const order=S.days.map(d=>({d, last:[...S.log].reverse().find(l=>l.dayId===d.id)}));
-  order.sort((a,b)=>{ const x=a.last?a.last.date:'', y=b.last?b.last.date:''; return x<y? -1 : x>y? 1 : 0; });
-  order.forEach(({d,last})=>{
+  dayOrder().forEach(({d,last})=>{
     h+='<button class="daybtn" data-a="start" data-day="'+d.id+'"><div><div class="t">'+esc(d.name)+'</div><div class="fx">'+esc(d.ex[0]? d.ex[0].name : '')+'</div></div><div class="s">'+(last?'laatst<br>'+dstr(last.date):'nog niet<br>gedaan')+'</div></button>';
   });
   h+='</div>';
+  const wk=cardioWeek().length, lc=lastCardio();
+  h+='<button class="daybtn cbtn" data-a="cstart"><div><div class="t">🏃 Cardio</div><div class="fx">Deze week '+wk+'× · doel 1, 2 = bonus</div></div><div class="s">'+(lc?'laatst<br>'+dstr(lc.date):'nog niet<br>gedaan')+'</div></button>';
+  h+='<p class="hint" style="margin:6px 2px 14px">💡 '+esc(cardioTip())+'</p>';
   h+='<div class="card fold" id="fold-rules"><button class="fold-head" data-a="fold" data-f="fold-rules">Regels &amp; technieken <span class="arr">›</span></button><div class="fold-body"><ul>'+RULES.map(r=>'<li>'+esc(r)+'</li>').join('')+'</ul></div></div>';
+  return h;
+}
+
+function dayOrder(){
+  // volgorde: wie het langst geleden is gedaan staat bovenaan (= de volgende)
+  const order=S.days.map(d=>({d, last:[...S.log].reverse().find(l=>l.dayId===d.id)}));
+  order.sort((a,b)=>{ const x=a.last?a.last.date:'', y=b.last?b.last.date:''; return x<y? -1 : x>y? 1 : 0; });
+  return order;
+}
+
+function vCardio(){
+  const c=S.cdraft, u=CDEV[c.dev].unit;
+  const chipB=(a,v,txt,on)=>'<button class="chip'+(on?' on':'')+'" data-a="'+a+'" data-v="'+v+'">'+esc(txt)+'</button>';
+  const stepRow=(f,steps,fmtStep,val)=>'<div class="wrow">'
+    +steps.slice(0,2).map(d=>'<button class="stp txt num" data-a="cv" data-f="'+f+'" data-d="'+d+'">'+fmtStep(d)+'</button>').join('')
+    +'<span class="wval num" style="flex:1;min-width:0;white-space:nowrap;font-size:18px">'+val+'</span>'
+    +steps.slice(2).map(d=>'<button class="stp txt num" data-a="cv" data-f="'+f+'" data-d="'+d+'">'+fmtStep(d)+'</button>').join('')+'</div>';
+  const sg=d=>(d>0?'+':'−')+fmtW(Math.abs(d));
+  let h='<button class="back" data-a="cback">‹ Overzicht</button>';
+  h+='<h1><small>'+dstr(c.date)+'</small>🏃 Cardio</h1>';
+  h+='<div class="card card-pad ctip">💡 '+esc(cardioTip())+'</div>';
+  h+='<div class="card card-pad"><div class="lblh">Sessie</div><div class="chips">'+['A','B'].map(t=>chipB('ctype',t,t+': '+CTYPE[t].name,c.type===t)).join('')+'</div>';
+  h+='<div class="lblh" style="margin-top:12px">Waar</div><div class="chips">'+Object.keys(CDEV).map(k=>chipB('cdev',k,CDEV[k].name,c.dev===k)).join('')+'</div>';
+  h+='<p class="hint" style="margin:12px 0 0">'+esc(cProto(c))+'</p></div>';
+  const last=lastCardio(c.type,c.dev);
+  h+='<div class="card card-pad">';
+  h+= last? '<div class="hint num" style="margin-bottom:10px">Vorige keer ('+dstr(last.date)+'): '+esc(fmtInt(u,last.cardio.val)+' · '+last.cardio.min+' min'+(last.cardio.km?' · '+fmtW(last.cardio.km)+' km':'')+(last.cardio.rpe?' · '+RPE[last.cardio.rpe]+' '+RPE_L[last.cardio.rpe]:''))
+           +(last.cardio.rpe===1? ' — voelde licht, probeer iets '+(u==='lvl'?'hoger':'sneller') : '')+'</div>'
+          : '<div class="hint" style="margin-bottom:10px">Eerste keer: het starttempo is een schatting — stel bij op gevoel.</div>';
+  h+='<div class="lblh">'+(c.type==='A'?'Hard-blokken':'Tempo')+(u==='pace'?' (min per km)':u==='kmh'?' (snelheid)':' (stand)')+'</div>';
+  h+=stepRow('val', CSTEPS[u], u==='pace'? d=>(d>0?'+':'−')+Math.abs(d)+'s' : sg, fmtInt(u,c.val));
+  h+='<div class="lblh">Totale tijd</div>'+stepRow('min',[-5,-1,1,5],sg,c.min+' min');
+  if(u!=='lvl') h+='<div class="lblh">Afstand (mag leeg)</div>'+stepRow('km',[-1,-0.1,0.1,1],sg,c.km? fmtW(c.km)+' km' : '—');
+  if(c.type==='A') h+='<div class="lblh" style="margin-top:4px">Blokken gehaald</div><div class="blks">'+c.blocks.map((on,i)=>'<button class="blk'+(on?' on':'')+'" data-a="cblk" data-i="'+i+'">'+(on?'✓ ':'')+'Blok '+(i+1)+'</button>').join('')+'</div>';
+  h+='<div class="lblh" style="margin-top:14px">Hoe zwaar?</div><div class="rpes">'+[1,2,3].map(v=>'<button class="fbtn'+(c.rpe===v?' on':'')+'" data-a="crpe" data-v="'+v+'">'+RPE[v]+' '+RPE_L[v]+'</button>').join('')+'</div>';
+  h+='</div>';
+  h+='<button class="primary" data-a="csave">Cardio opslaan</button>';
+  h+='<button class="ghost" data-a="cback">Annuleren</button>';
   return h;
 }
 
@@ -650,7 +766,8 @@ function vHist(){
     h+='<div class="card">';
     [...S.log].reverse().slice(0,histShown).forEach(s=>{
       const day=S.days.find(d=>d.id===s.dayId);
-      h+='<div class="sess"><div class="sess-head"><span class="d">'+dstr(s.date)+'</span><span class="hint">'+esc(day?day.name:'')+'</span><button class="del" data-a="del" data-id="'+s.id+'">✕</button></div><ul class="num">';
+      h+='<div class="sess"><div class="sess-head"><span class="d">'+dstr(s.date)+'</span><span class="hint">'+esc(s.cardio?'🏃 Cardio':day?day.name:'')+'</span><button class="del" data-a="del" data-id="'+s.id+'">✕</button></div><ul class="num">';
+      if(s.cardio) h+='<li>'+esc(cardioLine(s.cardio))+'</li>';
       s.entries.forEach(e=>{
         let line=esc(e.name)+(e.bw?'':' '+fmtW(e.w)+'kg');
         const allEq=e.reps.every(r=>r===e.reps[0]);
@@ -844,20 +961,22 @@ function vProg(){
 /* ---------- frequentie ---------- */
 function isoD(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function freqCounts(){
-  const dates=[...new Set(S.log.map(s=>s.date))].sort();
+  const dates=[...new Set(S.log.filter(s=>s.dayId!=='cardio').map(s=>s.date))].sort();
+  const cdates=cardioLog().map(s=>s.date);
+  const cnt=(a,b)=>({n:dates.filter(x=>x>=isoD(a)&&x<isoD(b)).length, c:cdates.filter(x=>x>=isoD(a)&&x<isoD(b)).length});
   const out=[], now=new Date();
   if(freqMode==='week'){
     const mon=new Date(now); mon.setDate(now.getDate()-((now.getDay()+6)%7)); // maandag deze week
     for(let i=25;i>=0;i--){
       const a=new Date(mon); a.setDate(mon.getDate()-7*i);
       const b=new Date(a); b.setDate(a.getDate()+7);
-      out.push({label:a.getDate()+' '+MON[a.getMonth()], n:dates.filter(x=>x>=isoD(a)&&x<isoD(b)).length, cur:i===0});
+      out.push({label:a.getDate()+' '+MON[a.getMonth()], ...cnt(a,b), cur:i===0});
     }
   }else{
     for(let i=23;i>=0;i--){
       const a=new Date(now.getFullYear(), now.getMonth()-i, 1);
       const b=new Date(now.getFullYear(), now.getMonth()-i+1, 1);
-      out.push({label:MON[a.getMonth()]+" '"+String(a.getFullYear()).slice(2), n:dates.filter(x=>x>=isoD(a)&&x<isoD(b)).length, cur:i===0});
+      out.push({label:MON[a.getMonth()]+" '"+String(a.getFullYear()).slice(2), ...cnt(a,b), cur:i===0});
     }
   }
   return out;
@@ -871,10 +990,11 @@ function drawFreq(hoverI){
   const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
   const css=getComputedStyle(document.documentElement);
   const C={line:css.getPropertyValue('--line').trim(), muted:css.getPropertyValue('--muted').trim(),
-           accent:css.getPropertyValue('--accent').trim(), ink:css.getPropertyValue('--ink').trim()};
+           accent:css.getPropertyValue('--accent').trim(), ink:css.getPropertyValue('--ink').trim(),
+           cardio:css.getPropertyValue('--cardio').trim()};
   if(!data.length) return;
   const L=26, R=8, T=12, B=24, iw=W-L-R, ih=H-T-B;
-  const vmax=Math.max(4, ...data.map(d=>d.n));
+  const vmax=Math.max(4, ...data.map(d=>d.n+(d.c||0)));
   ctx.font='11px sans-serif';
   // gridlijnen op hele aantallen
   const step=vmax>6? 2 : 1;
@@ -886,12 +1006,19 @@ function drawFreq(hoverI){
   }
   const bw=iw/data.length;
   data.forEach((d,i)=>{
-    if(!d.n) return;
-    const h=ih*d.n/vmax, x=L+i*bw+bw*0.18, y=T+ih-h;
-    ctx.fillStyle=C.accent; ctx.globalAlpha=(hoverI==null||hoverI===i)?1:.45;
-    ctx.beginPath();
-    ctx.roundRect? ctx.roundRect(x,y,bw*0.64,h,[3,3,0,0]) : ctx.rect(x,y,bw*0.64,h);
-    ctx.fill(); ctx.globalAlpha=1;
+    const c=d.c||0;
+    if(!d.n && !c) return;
+    const x=L+i*bw+bw*0.18, w=bw*0.64;
+    ctx.globalAlpha=(hoverI==null||hoverI===i)?1:.45;
+    // gym onderin, cardio erbovenop; alleen het bovenste blok krijgt ronde hoeken
+    [[d.n,C.accent,0],[c,C.cardio,d.n]].forEach(([v,col,base])=>{
+      if(!v) return;
+      const h=ih*v/vmax, y=T+ih-ih*(base+v)/vmax, top=(base+v)===(d.n+c);
+      ctx.fillStyle=col; ctx.beginPath();
+      ctx.roundRect? ctx.roundRect(x,y,w,h,top?[3,3,0,0]:0) : ctx.rect(x,y,w,h);
+      ctx.fill();
+    });
+    ctx.globalAlpha=1;
   });
   // x-labels: eerste en laatste
   ctx.fillStyle=C.muted; ctx.textBaseline='top';
@@ -900,7 +1027,7 @@ function drawFreq(hoverI){
   const tip=$('#ftip');
   if(hoverI!=null && data[hoverI]){
     const d=data[hoverI];
-    tip.textContent=(freqMode==='week'?'week van ':'')+d.label+' · '+d.n+'×';
+    tip.textContent=(freqMode==='week'?'week van ':'')+d.label+' · '+d.n+'× gym'+(d.c?' · '+d.c+'× cardio':'');
     tip.style.display='block';
   }else if(tip){ tip.style.display='none'; }
 }
@@ -931,8 +1058,10 @@ function vFreq(){
   h+='<div class="stat"><div class="v">'+cur+'×</div><div class="l">deze '+(freqMode==='week'?'week':'maand')+'</div></div>';
   h+='<div class="stat"><div class="v">'+String(avg).replace('.',',')+'×</div><div class="l">gem. laatste 12</div></div>';
   h+='<div class="stat"><div class="v">'+best+'×</div><div class="l">beste</div></div>';
+  h+='<div class="stat"><div class="v" style="color:var(--cardio)">'+data[data.length-1].c+'×</div><div class="l">cardio deze '+(freqMode==='week'?'week':'maand')+'</div></div>';
   h+='</div>';
-  h+='<p class="hint" style="margin:10px 0 0">'+(freqMode==='week'?'Laatste 26 weken':'Laatste 24 maanden')+' · tik op een staaf voor het aantal.</p>';
+  h+='<div class="legend"><span><i style="background:var(--accent)"></i>Gym</span><span><i style="background:var(--cardio)"></i>Cardio</span></div>';
+  h+='<p class="hint" style="margin:10px 0 0">'+(freqMode==='week'?'Laatste 26 weken':'Laatste 24 maanden')+' · tik op een staaf voor het aantal. Eerste drie cijfers tellen alleen gym.</p>';
   h+='</div>';
   return h;
 }
@@ -960,6 +1089,29 @@ document.getElementById('app').addEventListener('click',ev=>{
       S.draft=null;
     }
     startDraft(b.dataset.day); window.scrollTo(0,0); return;
+  }
+
+  if(a==='cstart'){ startCardio(); window.scrollTo(0,0); return; }
+  if(S.cdraft){
+    const c=S.cdraft;
+    if(a==='cback'){ S.cdraft=null; homeOverride=!!S.draft; persist(); render(); window.scrollTo(0,0); return; }
+    if(a==='ctype'||a==='cdev'){
+      const t=a==='ctype'? b.dataset.v : c.type, dv=a==='cdev'? b.dataset.v : c.dev;
+      S.cdraft={...cardioFill(t,dv), date:c.date, rpe:c.rpe}; persist(); render(); return;
+    }
+    if(a==='cv'){
+      const f=b.dataset.f, d=parseFloat(b.dataset.d), u=CDEV[c.dev].unit;
+      if(f==='val'){
+        const lim={kmh:[3,25], pace:[150,600], lvl:[1,20]}[u];
+        c.val=Math.min(lim[1], Math.max(lim[0], Math.round((c.val+d)*10)/10));
+      }
+      if(f==='min') c.min=Math.min(180, Math.max(1, c.min+d));
+      if(f==='km') c.km=Math.max(0, Math.round((c.km+d)*10)/10);
+      persist(); render(); return;
+    }
+    if(a==='cblk'){ const i=+b.dataset.i; c.blocks[i]=!c.blocks[i]; persist(); render(); return; }
+    if(a==='crpe'){ const v=+b.dataset.v; c.rpe= c.rpe===v? 0 : v; persist(); render(); return; }
+    if(a==='csave'){ saveCardio(); return; }
   }
 
   if(S.draft){
